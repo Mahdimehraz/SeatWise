@@ -129,7 +129,16 @@ services:
       - product-service
       - order-service
     restart: unless-stopped
-
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.frontend.rule=Host(`cinema.kojiberi.com`)"
+      - "traefik.http.routers.frontend.entrypoints=http,https"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      # - "traefik.http.routers.frontend.middlewares=traefik-auth"
+    networks:
+      - web
 
 
   zookeeper:
@@ -156,7 +165,7 @@ services:
     container_name: payment-service
     environment:
       - KAFKA_BROKER=kafka:9092
-      - PORT=3001
+      - PORT=3004
     ports:
       - "3004:3004"
     depends_on:
@@ -179,3 +188,6 @@ volumes:
   product_db_data:
   order_db_data:
 
+networks:
+  web:
+    external: true
