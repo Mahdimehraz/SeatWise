@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { userAPI } from '@/lib/api';
 
 export default function LoginPage() {
@@ -50,7 +51,22 @@ export default function LoginPage() {
         router.push('/movies');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'An error occurred');
+      const errorMessage = err.message || err.response?.data?.error || 'خطایی رخ داد';
+      
+      // Check if invalid credentials
+      if (err.isInvalidCredential) {
+        toast.error(err.message || 'رمز عبور یا شماره موبایل اشتباه است');
+        setError(err.message || 'رمز عبور یا شماره موبایل اشتباه است');
+      }
+      // Check if service is unavailable
+      else if (err.isServiceUnavailable) {
+        toast.error(err.message || errorMessage);
+      } else {
+        // For other errors, show in form and toast
+        const displayMessage = err.response?.data?.error || errorMessage;
+        toast.error(displayMessage);
+        setError(displayMessage);
+      }
     } finally {
       setLoading(false);
     }

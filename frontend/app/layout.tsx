@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ToasterProvider from '@/components/ToasterProvider'
 
 export const metadata: Metadata = {
   title: 'Cinema Ticket Booking',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fa" dir="rtl">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ToasterProvider />
+      </body>
     </html>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { productAPI } from '@/lib/api';
 import Image from 'next/image';
 import { toPersianNumber } from '@/lib/utils';
@@ -37,7 +38,15 @@ export default function MoviesPage() {
       const data = await productAPI.getAllMovies();
       setMovies(data.movies);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load movies');
+      const errorMessage = err.message || err.response?.data?.error || 'خطا در بارگذاری فیلم‌ها';
+      
+      // Check if service is unavailable
+      if (err.isServiceUnavailable || err.message) {
+        toast.error(err.message || errorMessage);
+        setError(err.message || errorMessage);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

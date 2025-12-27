@@ -2,6 +2,8 @@ const axios = require('axios');
 const { pool } = require('../config/database');
 
 const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3002';
+const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3004';
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
 const TICKET_PRICE = 50000; // Price per ticket (50,000 تومان)
 
 const createOrder = async (req, res) => {
@@ -179,21 +181,66 @@ const processPayment = async (req, res) => {
       return res.status(400).json({ error: 'Order is cancelled' });
     }
 
-    // TODO: Integrate with actual payment service
-    // For now, simulate payment processing
-    // In production, you would call the payment service API here
-    // Example:
-    // const paymentResult = await axios.post('PAYMENT_SERVICE_URL', {
-    //   order_id: order.id,
-    //   amount: order.total_amount,
-    //   payment_method,
-    //   payment_details
-    // });
+    // Get user email from User Service
+    let userEmail = null;
+    try {
+      const profileResponse = await axios.get(
+        `${USER_SERVICE_URL}/api/users/profile`,
+        {
+          headers: {
+            Authorization: req.headers.authorization, // Forward auth token
+          },
+          timeout: 5000, // 5 seconds timeout
+        }
+      );
+      userEmail = profileResponse.data.user?.email;
+      
+      if (!userEmail) {
+        console.warn(`No email found for user ${userId}, using placeholder`);
+        userEmail = `user${userId}@example.com`;
+      }
+    } catch (error) {
+      console.error('Error fetching user email from User Service:', error);
+      // If we can't get email, use a placeholder
+      // In production, you might want to fail the payment if email is required
+      userEmail = `user${userId}@example.com`;
+    }
 
-    // Simulate payment success/failure (80% success rate for demo)
-    const paymentSuccess = Math.random() > 0.2;
-    
-    if (paymentSuccess) {
+    // Call Payment Service
+    let paymentResult;
+    try {
+      paymentResult = await axios.post(
+        `${PAYMENT_SERVICE_URL}/payments/process`,
+        {
+          orderId: order.id,
+          amount: parseFloat(order.total_amount),
+          email: userEmail,
+        },
+        {
+          timeout: 10000, // 10 seconds timeout
+        }
+      );
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Payment service error:', error);
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || !error.response) {
+        return res.status(503).json({
+          error: 'Payment service is unavailable',
+          payment_status: 'failed',
+          message: 'Payment service is currently unavailable. Please try again later.',
+        });
+      }
+      
+      return res.status(error.response?.status || 500).json({
+        error: 'Payment processing failed',
+        payment_status: 'failed',
+        message: error.response?.data?.message || 'Payment could not be processed. Please try again.',
+      });
+    }
+
+    // Check if payment was successful
+    if (paymentResult.data && paymentResult.data.status === 'PAID') {
       // Get showtime info to update reserved seats
       try {
         const showtimeResponse = await axios.get(
@@ -230,16 +277,17 @@ const processPayment = async (req, res) => {
         message: 'Payment processed successfully',
         order: updateResult.rows[0],
         payment_status: 'success',
-        transaction_id: `TXN-${Date.now()}-${id}`,
+        transaction_id: paymentResult.data.paymentId || `TXN-${Date.now()}-${id}`,
+        paymentId: paymentResult.data.paymentId,
       });
     } else {
-      // Payment failed
+      // Payment failed - payment service returned non-success status
       await client.query('ROLLBACK');
 
       res.status(400).json({
         error: 'Payment failed',
         payment_status: 'failed',
-        message: 'Payment could not be processed. Please try again.',
+        message: paymentResult.data?.message || 'Payment could not be processed. Please try again.',
       });
     }
   } catch (error) {

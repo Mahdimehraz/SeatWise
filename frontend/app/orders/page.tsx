@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { orderAPI, productAPI } from '@/lib/api';
 import Image from 'next/image';
 import { toPersianNumber, formatPersianNumber, formatTime } from '@/lib/utils';
@@ -67,7 +68,15 @@ export default function OrdersPage() {
       const moviesMap = Object.assign({}, ...movieResults);
       setMovies(moviesMap);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load orders');
+      const errorMessage = err.message || err.response?.data?.error || 'خطا در بارگذاری سفارشات';
+      
+      // Check if service is unavailable
+      if (err.isServiceUnavailable || err.message) {
+        toast.error(err.message || errorMessage);
+        setError(err.message || errorMessage);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -97,11 +106,44 @@ export default function OrdersPage() {
         });
       }
     } catch (err: any) {
-      setPaymentMessage({
-        orderId,
-        message: err.response?.data?.error || 'خطا در پردازش پرداخت',
-        type: 'error',
-      });
+      let errorMessage = err.message || err.response?.data?.error || err.response?.data?.message || 'خطا در پردازش پرداخت';
+      
+      // Check if payment service is unavailable
+      if (err.isPaymentServiceUnavailable) {
+        toast.error(err.message || 'سرویس پرداخت در دسترس نیست. لطفاً بعداً تلاش کنید.');
+        setPaymentMessage({
+          orderId,
+          message: err.message || 'سرویس پرداخت در دسترس نیست. لطفاً بعداً تلاش کنید.',
+          type: 'error',
+        });
+      }
+      // Check if payment failed
+      else if (err.isPaymentFailed) {
+        toast.error(err.message || 'پرداخت ناموفق بود. لطفاً دوباره تلاش کنید.');
+        setPaymentMessage({
+          orderId,
+          message: err.message || 'پرداخت ناموفق بود. لطفاً دوباره تلاش کنید.',
+          type: 'error',
+        });
+      }
+      // Check if order service is unavailable
+      else if (err.isServiceUnavailable) {
+        toast.error(err.message || errorMessage);
+        setPaymentMessage({
+          orderId,
+          message: err.message || errorMessage,
+          type: 'error',
+        });
+      }
+      // Other errors
+      else {
+        toast.error(errorMessage);
+        setPaymentMessage({
+          orderId,
+          message: errorMessage,
+          type: 'error',
+        });
+      }
     } finally {
       setProcessingPayment(null);
     }
