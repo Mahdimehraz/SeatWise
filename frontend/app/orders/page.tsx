@@ -89,15 +89,22 @@ export default function OrdersPage() {
     try {
       const response = await orderAPI.processPayment(orderId);
       
-      if (response.payment_status === 'success') {
+      if (response.payment_status === 'success' || response.status === 'PAID') {
+        // Update order status in local state immediately
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId 
+              ? { ...order, status: 'paid' }
+              : order
+          )
+        );
+        
+        toast.success('پرداخت با موفقیت انجام شد!');
         setPaymentMessage({
           orderId,
-          message: `پرداخت با موفقیت انجام شد! شماره تراکنش: ${toPersianNumber(response.transaction_id)}`,
+          message: `پرداخت با موفقیت انجام شد! شماره تراکنش: ${toPersianNumber(response.transaction_id || response.paymentId || '')}`,
           type: 'success',
         });
-        
-        // Refresh orders list
-        await fetchOrders();
       } else {
         setPaymentMessage({
           orderId,
