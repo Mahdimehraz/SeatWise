@@ -1,10 +1,16 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors'); // <-- import cors
 const { Kafka } = require('kafkajs');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(express.json());
+
+// Enable CORS
+app.use(cors({
+  origin: '*'
+}));
 
 const kafka = new Kafka({
   clientId: 'payment-service',
