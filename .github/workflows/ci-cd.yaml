@@ -1,0 +1,44 @@
+name: CI/CD to Minikube
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, minikube]
+
+    env:
+      SERVICES: frontend user-service product-service payment-service order-service notification-service
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Minikube Docker environment
+        run: |
+          eval $(minikube docker-env)
+          docker info
+
+      - name: Build Docker images
+        run: |
+          for service in $SERVICES; do
+            echo "Building $service"
+            docker build \
+              -t $service:latest \
+              ./$service
+          done
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+
+          for service in $SERVICES; do
+            kubectl apply -f services/$service/k8s.yaml
+          done
+
+      - name: Restart deployments
+        run: |
+          for service in $SERVICES; do
+            kubectl rollout restart deployment/$service
+          done

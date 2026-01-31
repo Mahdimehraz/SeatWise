@@ -117,6 +117,7 @@ services:
         NEXT_PUBLIC_USER_SERVICE_URL: http://user-service:3001
         NEXT_PUBLIC_PRODUCT_SERVICE_URL: http://product-service:3002
         NEXT_PUBLIC_ORDER_SERVICE_URL: http://order-service:3003
+        NEXT_PUBLIC_PAYMENT_SERVICE_URL: http://185.110.190.146:3004
     container_name: cinema-booking-frontend
     ports:
       - "5000:3000"
@@ -124,6 +125,7 @@ services:
       NEXT_PUBLIC_USER_SERVICE_URL: http://user-service:3001
       NEXT_PUBLIC_PRODUCT_SERVICE_URL: http://product-service:3002
       NEXT_PUBLIC_ORDER_SERVICE_URL: http://order-service:3003
+      NEXT_PUBLIC_PAYMENT_SERVICE_URL: http://185.110.190.146:3004
     depends_on:
       - user-service
       - product-service
