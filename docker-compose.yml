@@ -178,8 +178,8 @@ services:
     container_name: notification-service
     environment:
       - KAFKA_BROKER=kafka:9092
-      - EMAIL_USER=your_email@gmail.com
-      - EMAIL_PASS=your_app_password
+      - EMAIL_USER=mahdimehraz@gmail.com
+      - EMAIL_PASS=myms sogd fwvr nghr
     ports:
       - "3005:3005"
     depends_on:
