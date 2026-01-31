@@ -277,26 +277,39 @@ export const orderAPI = {
         }
       );
 
-      // If payment successful, update order status in Order Service
+      // If payment successful, update order status in Order Service database
       if (paymentResponse.data && paymentResponse.data.status === 'PAID') {
-        try {
-          // Update order status to paid via Order Service
-          await authAxios.post(`/api/orders/${orderId}/pay`, {
-            payment_method: paymentData?.payment_method || 'credit_card',
-            payment_details: paymentData?.payment_details || {},
-          });
-        } catch (updateError) {
-          console.error('Error updating order status:', updateError);
-          // Payment was successful but order update failed
-          // This is a critical error - payment went through but order wasn't updated
+        const paymentId = paymentResponse.data.paymentId;
+        
+        if (!paymentId) {
+          console.error('Payment was successful but paymentId is missing from response');
+        } else {
+          try {
+            console.log(`Updating order ${orderId} with paymentId: ${paymentId}`);
+            
+            // Update order status to paid in database via Order Service
+            await authAxios.post(`/api/orders/${orderId}/pay`, {
+              payment_method: paymentData?.payment_method || 'credit_card',
+              payment_details: paymentData?.payment_details || {},
+              paymentId: paymentId, // Pass paymentId to skip Payment Service call
+            });
+            console.log(`✅ Order ${orderId} status updated successfully in database`);
+          } catch (updateError: any) {
+            console.error('❌ Error updating order status in database:', updateError);
+            console.error('Error response:', updateError.response?.data);
+            // Payment was successful but order update failed
+            // Still return success but log the error
+          }
         }
       }
 
+      // Return payment response - UI will update based on this
       return {
         payment_status: paymentResponse.data.status === 'PAID' ? 'success' : 'failed',
         transaction_id: paymentResponse.data.paymentId,
         paymentId: paymentResponse.data.paymentId,
         message: paymentResponse.data.message || 'Payment processed',
+        status: paymentResponse.data.status, // Include status for UI
       };
     } catch (error: any) {
       // Check if it's a payment service unavailable error

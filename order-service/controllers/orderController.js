@@ -154,7 +154,9 @@ const processPayment = async (req, res) => {
 
     const { id } = req.params;
     const userId = req.user.userId;
-    const { payment_method, payment_details } = req.body;
+    const { payment_method, payment_details, paymentId } = req.body;
+
+    console.log(`Processing payment for order ${id}, paymentId: ${paymentId}`);
 
     // Get order
     const orderResult = await client.query(
@@ -181,6 +183,53 @@ const processPayment = async (req, res) => {
       return res.status(400).json({ error: 'Order is cancelled' });
     }
 
+    // If paymentId is provided, it means payment was already processed by Payment Service
+    // Just update the order status without calling Payment Service again
+    if (paymentId) {
+      console.log(`✅ Payment already processed. Updating order ${id} status to paid with paymentId: ${paymentId}`);
+      // Get showtime info to update reserved seats
+      try {
+        const showtimeResponse = await axios.get(
+          `${PRODUCT_SERVICE_URL}/api/movies/${order.movie_id}/showtimes`
+        );
+        const showtimes = showtimeResponse.data.showtimes;
+        const showtime = showtimes.find(s => s.id === parseInt(order.showtime_id));
+
+        if (showtime) {
+          // Update reserved seats in Product Service (only after successful payment)
+          const newReservedSeats = showtime.reserved_seats + order.number_of_tickets;
+          await axios.patch(
+            `${PRODUCT_SERVICE_URL}/api/showtimes/${order.showtime_id}/reserve`,
+            { reserved_seats: newReservedSeats }
+          );
+        }
+      } catch (error) {
+        console.error('Error updating showtime seats:', error);
+        // Continue with payment even if showtime update fails
+      }
+
+      // Update order status to paid
+      const updateResult = await client.query(
+        `UPDATE orders 
+         SET status = 'paid', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND user_id = $2
+         RETURNING *`,
+        [id, userId]
+      );
+
+      await client.query('COMMIT');
+
+      return res.json({
+        message: 'Payment processed successfully',
+        order: updateResult.rows[0],
+        payment_status: 'success',
+        transaction_id: paymentId,
+        paymentId: paymentId,
+      });
+    }
+
+    // If no paymentId, process payment through Payment Service (legacy flow)
+    console.log(`⚠️ No paymentId provided for order ${id}, attempting to process payment through Payment Service`);
     // Get user email from User Service
     let userEmail = null;
     try {
